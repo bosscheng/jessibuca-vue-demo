@@ -1,13 +1,40 @@
 <template>
   <div class="root">
     <div class="container-shell">
+      <div class="container-shell-title">jessibuca demo player <span class="tag-version" v-if="version">({{
+          version
+        }})</span></div>
+      <div class="option">
+        <span>缓冲(秒):</span>
+        <input
+            style="width: 50px"
+            type="number"
+            ref="buffer"
+            value="0.2"
+            @change="changeBuffer"
+        />
+        <input
+            type="checkbox"
+            v-model="useMSE"
+            ref="vod"
+            @change="restartPlay('mse')"
+        /><span>MediaSource</span>
+        <input
+            type="checkbox"
+            v-model="useWCS"
+            ref="vod"
+            @change="restartPlay('wcs')"
+        /><span>webcodecs</span>
+
+      </div>
       <div id="container" ref="container"></div>
       <div class="input">
         <div>输入URL：</div>
         <input
+            type="input"
             autocomplete="on"
             ref="playUrl"
-            value="ws://localhost:8080/jessica/live/rtc"
+            value=""
         />
         <button v-if="!playing" @click="play">播放</button>
         <button v-else @click="pause">停止</button>
@@ -50,41 +77,42 @@
           <span v-if="performance">性能：{{ performance }}</span>
         </div>
       </div>
-      <div class="option">
-        <span>缓冲(秒):</span>
-        <input
-            style="width: 50px"
-            type="number"
-            ref="buffer"
-            value="0.2"
-            @change="changeBuffer"
-        />
-        <!-- <input
-          type="checkbox"
-          v-model="vod"
-          ref="vod"
-          @change="restartPlay"
-        /><span>点播模式</span> -->
+      <div class="input" v-if="loaded">
         <input
             type="checkbox"
             ref="offscreen"
-            v-model="forceNoOffscreen"
-            @change="restartPlay"
-        /><span>禁用离屏渲染</span>
-        <input type="checkbox" ref="resize" @change="changeResize"/><span
-      >禁止画面拉伸</span
-      >
+            v-model="useOffscreen"
+            @change="restartPlay('offscreen')"
+        /><span>离屏渲染</span>
+
+        <select v-model="scale" @change="scaleChange">
+          <option value="0">完全填充(拉伸)</option>
+          <option value="1">等比缩放</option>
+          <option value="2">完全填充(未拉伸)</option>
+        </select>
+        <button v-if="!playing" @click="clearView">清屏</button>
+        <template v-if="playing">
+          <select v-model="recordType">
+            <option value="webm">webm</option>
+            <option value="mp4">mp4</option>
+          </select>
+          <button v-if="!recording" @click="startRecord">录制</button>
+          <button v-if="!recording" @click="stopAndSaveRecord">暂停录制</button>
+        </template>
+
       </div>
     </div>
   </div>
 </template>
 <script>
+
 export default {
   name: "DemoPlayer",
   props: {},
   data() {
     return {
       jessibuca: null,
+      version: '',
       wasm: false,
       vc: "ff",
       playing: false,
@@ -97,8 +125,12 @@ export default {
       performance: "",
       volume: 1,
       rotate: 0,
-      vod: false,
-      forceNoOffscreen: true,
+      useWCS: false,
+      useMSE: true,
+      useOffscreen: false,
+      recording: false,
+      recordType: 'webm',
+      scale: 0
     };
   },
   mounted() {
@@ -109,35 +141,37 @@ export default {
     this.jessibuca.destroy();
   },
   methods: {
-    create() {
-      this.jessibuca = new window.Jessibuca({
-        container: this.$refs.container,
-        videoBuffer: Number(this.$refs.buffer.value), // 缓存时长
-        isResize: false,
-        text: "",
-        // background: "bg.jpg",
-        loadingText: "加载中",
-        // hasAudio:false,
-        debug: true,
-        showBandwidth: this.showBandwidth, // 显示网速
-        operateBtns: {
-          fullscreen: this.showOperateBtns,
-          screenshot: this.showOperateBtns,
-          play: this.showOperateBtns,
-          audio: this.showOperateBtns,
-        },
-        vod: this.vod,
-        forceNoOffscreen: this.forceNoOffscreen,
-        isNotMute: false,
-      });
-      // this.jessibuca.onLog = (msg) => console.log("onLog", msg);
-      // this.jessibuca.onLoad = (msg) => console.log("onLoad");
-      // this.jessibuca.onRecord = (msg) => console.log("onRecord", msg);
-      // this.jessibuca.onPause = () => console.log("onPause");
-      // this.jessibuca.onPlay = () => console.log("onPlay");
-      // this.jessibuca.onFullscreen = (msg) => console.log("onFullscreen", msg);
-      // this.jessibuca.onMute = (msg) => console.log("onMute", msg);
-      // this.jessibuca.onInitSize = () => console.log("onInitSize");
+    create(options) {
+      options = options || {};
+      this.jessibuca = new window.Jessibuca(
+          Object.assign(
+              {
+                container: this.$refs.container,
+                videoBuffer: Number(this.$refs.buffer.value), // 缓存时长
+                isResize: false,
+                useWCS: this.useWCS,
+                useMSE: this.useMSE,
+                text: "",
+                // background: "bg.jpg",
+                loadingText: "疯狂加载中...",
+                // hasAudio:false,
+                debug: true,
+                supportDblclickFullscreen: true,
+                showBandwidth: this.showBandwidth, // 显示网速
+                operateBtns: {
+                  fullscreen: this.showOperateBtns,
+                  screenshot: this.showOperateBtns,
+                  play: this.showOperateBtns,
+                  audio: this.showOperateBtns,
+                },
+                vod: this.vod,
+                forceNoOffscreen: !this.useOffscreen,
+                isNotMute: true,
+                timeout: 10
+              },
+              options
+          )
+      );
       var _this = this;
       this.jessibuca.on("load", function () {
         console.log("on load");
@@ -179,8 +213,8 @@ export default {
       // });
       // let _ts = 0;
       // this.jessibuca.on("timeUpdate", function (ts) {
-      //   // console.log('timeUpdate,old,new,timestamp', _ts, ts, ts - _ts);
-      //   // _ts = ts;
+      //     console.log('timeUpdate,old,new,timestamp', _ts, ts, ts - _ts);
+      //     _ts = ts;
       // });
 
       this.jessibuca.on("videoInfo", function (info) {
@@ -196,12 +230,8 @@ export default {
       });
 
       this.jessibuca.on('start', function () {
-        console.log('start');
+        console.log('frame start');
       })
-
-      // this.jessibuca.on("stats", function (stats) {
-      //   console.log('stats', JSON.stringify(stats));
-      // });
 
       this.jessibuca.on("performance", function (performance) {
         var show = "卡顿";
@@ -224,35 +254,25 @@ export default {
         console.log('kBps', kBps);
       });
 
-      // 显示时间戳 PTS
-      this.jessibuca.on('videoFrame', function () {
-
-      })
-
-      //
-      this.jessibuca.on('metadata', function () {
-
+      this.jessibuca.on("play", () => {
+        this.playing = true;
+        this.loaded = true;
+        this.quieting = this.jessibuca.isMute();
       });
+
+      this.jessibuca.on('recordingTimestamp', (ts) => {
+        console.log('recordingTimestamp', ts);
+      })
 
 
       // console.log(this.jessibuca);
     },
     play() {
       // this.jessibuca.onPlay = () => (this.playing = true);
-      this.jessibuca.on("play", () => {
-        this.playing = true;
-        this.loaded = true;
-        this.quieting = this.jessibuca.quieting;
-      });
+
 
       if (this.$refs.playUrl.value) {
-        if (this.jessibuca.hasLoaded()) {
-          this.jessibuca.play(this.$refs.playUrl.value);
-        } else {
-          this.jessibuca.on("load", () => {
-            this.jessibuca.play(this.$refs.playUrl.value);
-          });
-        }
+        this.jessibuca.play(this.$refs.playUrl.value);
       }
     },
     mute() {
@@ -288,34 +308,48 @@ export default {
       this.jessibuca.setFullscreen(true);
     },
 
+    clearView() {
+      this.jessibuca.clearView();
+    },
+
+    startRecord() {
+      const time = new Date().getTime();
+      this.jessibuca.startRecord(time, this.recordType);
+    },
+
+    stopAndSaveRecord() {
+      this.jessibuca.stopRecordAndSave();
+    },
+
+
     screenShot() {
       this.jessibuca.screenshot();
     },
 
-    changeWasm() {
-      this.wasm = this.$refs.wasm.checked;
-    },
 
-    restartPlay() {
+    restartPlay(type) {
+
+      if (type === 'mse') {
+        this.useWCS = false;
+        this.useOffscreen = false;
+      } else if (type === 'wcs') {
+        this.useMSE = false
+      } else if (type === 'offscreen') {
+        this.useMSE = false
+      }
+
       this.destroy();
-      this.play();
+      setTimeout(() => {
+        this.play();
+      }, 100)
     },
 
     changeBuffer() {
       this.jessibuca.setBufferTime(Number(this.$refs.buffer.value));
     },
 
-    changeResize() {
-      const value = this.$refs.resize.checked ? 1 : 0;
-      this.jessibuca.setScaleMode(value);
-    },
-    changeVod() {
-      const value = this.$refs.vod.checked ? 1 : 0;
-      this.jessibuca.setVod(value);
-    },
-    changeOffscreen() {
-      const value = this.$refs.offscreen.checked ? 1 : 0;
-      this.jessibuca.setNoOffscreen(value);
+    scaleChange() {
+      this.jessibuca.setScaleMode(this.scale);
     },
   },
 };
@@ -328,6 +362,7 @@ export default {
 }
 
 .container-shell {
+  position: relative;
   backdrop-filter: blur(5px);
   background: hsla(0, 0%, 50%, 0.5);
   padding: 30px 4px 10px 4px;
@@ -338,13 +373,15 @@ export default {
   box-shadow: 0 10px 20px;
 }
 
-.container-shell:before {
-  content: "jessibuca demo player";
+.container-shell-title {
   position: absolute;
   color: darkgray;
   top: 4px;
   left: 10px;
   text-shadow: 1px 1px black;
+}
+
+.tag-version {
 }
 
 #container {
@@ -355,6 +392,7 @@ export default {
 
 .input {
   display: flex;
+  align-items: center;
   margin-top: 10px;
   color: white;
   place-content: stretch;
@@ -364,7 +402,7 @@ export default {
   bottom: 0px;
 }
 
-.input input {
+.input input[type='input'] {
   flex: auto;
 }
 
