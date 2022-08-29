@@ -1,24 +1,10 @@
-# demo
+# jessibuca-vue-demo
 
-## Project setup
-```
-yarn install
-```
 
-### Compiles and hot-reloads for development
-```
-yarn serve
+# run dist
+
+```shell
+npm run preview
 ```
 
-### Compiles and minifies for production
-```
-yarn build
-```
-
-### Lints and fixes files
-```
-yarn lint
-```
-
-### Customize configuration
-See [Configuration Reference](https://cli.vuejs.org/config/).
+open browser href `http://localhost:8888/index.html`
