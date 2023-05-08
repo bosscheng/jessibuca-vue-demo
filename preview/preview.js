@@ -53,4 +53,4 @@ http.createServer(function (request, response) {
     });
 }).listen(config.port, config.host);
 
-console.log(`server running at http://${config.host}:${config.port}/index.html`);
+console.log(`server running at http://${config.host || 'localhost'}:${config.port}/index.html`);
