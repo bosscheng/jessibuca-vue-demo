@@ -1,28 +1,27 @@
 # 注意
 
-github demo 上面的jessibuca.js、 decoder.js可能存在版本的延迟。请更新到最新的文件使用
+该分支已经废弃了
+该分支已经废弃了
+该分支已经废弃了
+该分支已经废弃了
+该分支已经废弃了
 
-项目地址：https://github.com/langhuihui/jessibuca/releases
 
-## Project setup
-```
-yarn install
-```
 
-### Compiles and hot-reloads for development
-```
-yarn serve
-```
+# 开源版
 
-### Compiles and minifies for production
-```
-yarn build
-```
 
-### Lints and fixes files
-```
-yarn lint
-```
+vue3: https://github.com/bosscheng/jessibuca-vue-demo/tree/v3 
 
-### Customize configuration
-See [Configuration Reference](https://cli.vuejs.org/config/).
+vue2: https://github.com/bosscheng/jessibuca-vue-demo/tree/v2
+
+typescript:https://github.com/bosscheng/jessibuca-vue-ts-demo
+
+
+# pro 版本
+
+vue3(单页面):https://github.com/bosscheng/jessibuca-vue-demo/tree/pro
+
+vue3-router(多页面切换) https://github.com/bosscheng/jessibuca-vue-demo/tree/pro-vue3-router
+
+vue2(单页面):https://github.com/bosscheng/jessibuca-vue-demo/tree/pro-vue2
