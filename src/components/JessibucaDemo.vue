@@ -605,7 +605,7 @@ export default {
     window.onerror = (msg) => (this.err = msg);
   },
   async unmounted() {
-    if (this.$options && this.jessibuca) {
+    if (this.jessibuca) {
       await this.jessibuca.destroy()
       this.jessibuca = null
     }
