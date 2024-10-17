@@ -23,6 +23,11 @@ var config = {
 
 //
 http.createServer(function (request, response) {
+    if (path.normalize(decodeURI(request.url)) !== decodeURI(request.url)) {
+        response.statusCode = 403;
+        response.end();
+        return;
+    }
     var pathName = url.parse(request.url).pathname;
     var realName = path.join('.', pathName);
     var ext = path.extname(pathName);
