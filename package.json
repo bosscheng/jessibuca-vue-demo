@@ -4,13 +4,14 @@
   "private": true,
   "scripts": {
     "dev": "vue-cli-service serve",
+    "start": "vue-cli-service serve",
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
     "preview": "node preview/preview.js"
   },
   "dependencies": {
     "core-js": "^3.6.5",
-    "vue": "^3.0.0",
+    "vue": "^3.2.47",
     "element-plus": "2.2.25"
   },
   "devDependencies": {

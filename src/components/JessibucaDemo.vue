@@ -23,8 +23,10 @@
           <span v-if="supportMSE" style="color: green;margin-right: 10px">支持MSE H264解码；</span>
           <span v-if="!supportMSE" style="color: red;">不支持MSE H264解码；</span>
           <span v-if="supportMSEHevc" style="color: green;margin-right: 10px">支持MSE H265解码;</span>
-          <span v-if="!supportMSEHevc"
-                style="color: red;margin-right: 10px;">不支持MSE H265解码,会自动切换成wasm(simd)解码</span>
+          <span v-if="!supportMSEHevc" style="color: red;margin-right: 10px;">不支持MSE H265解码,会自动切换成wasm(simd)解码</span>
+          <span v-if="!isEdgeSupportHevc"><a
+              href="https://jessibuca.com/zip/Microsoft.HEVCVideoExtension_2.1.1803.0_neutra.zip"
+              target="_blank">下载window Edge Hevc扩展插件</a></span>
         </div>
         <div>
           <div v-if="playing && decodeType">
@@ -40,8 +42,7 @@
         <span v-if="supportWCS" style="color: green;">支持Webcodec H264解码；</span>
         <span v-if="!supportWCS" style="color: red;">不支持Webcodec H265解码(需要https/localhost),</span>
         <span v-if="supportWCSHevc" style="color: green;">支持Webcodec H265解码；</span>
-        <span v-if="!supportWCSHevc"
-              style="color: red;">不支持Webcodec H265解码(需要https/localhost),会自动切换成wasm(simd)解码</span>
+        <span v-if="!supportWCSHevc" style="color: red;">不支持Webcodec H265解码(需要https/localhost),会自动切换成wasm(simd)解码</span>
       </div>
       <div class="input">
         当前浏览器：
@@ -82,25 +83,37 @@
 
       </div>
       <div class="input">
-        <span>解码器：</span>
+        <span>硬解码：</span>
         <input
             type="checkbox"
             v-model="useMSE"
-            ref="vod"
             @change="restartPlay('mse')"
         /><span>MediaSource</span>
         <input
             type="checkbox"
             v-model="useWCS"
-            ref="vod"
             @change="restartPlay('wcs')"
-        /><span>webcodecs</span>
+        /><span>webcodecs</span> |
+        <input
+            checked
+            @change="restartPlay()"
+            type="checkbox"
+            v-model="audioDecodeUseHardware"
+        />
+        <span>硬解码音频</span>
+      </div>
+      <div class="input">
+        <span>软解码：</span>
         <input
             type="checkbox"
             v-model="useSIMD"
-            ref="vod"
             @change="restartPlay('simd')"
         /><span>SIMD</span>
+        <input
+            type="checkbox"
+            v-model="isFFmpegSIMD"
+            @change="restartPlay('simd')"
+        /><span>isSIMD(V2)</span>
       </div>
       <div class="input">
         <input
@@ -129,17 +142,45 @@
               v-model="isMute"
               @change="restartPlay()"
           /><span>静音播放</span>
+
           <input
               type="checkbox"
-              v-model="isFlv"
+              v-model="decoderErrorAutoWasm"
               @change="restartPlay()"
-          /><span>设置Flv格式</span>
-          <input
-              type="checkbox"
-              v-model="isFmp4"
-              @change="restartPlay()"
-          /><span>设置Fmp4格式</span>
+          /><span>硬解码失败降级到wasm</span>
         </div>
+      </div>
+      <div class="input">
+        <input
+            type="checkbox"
+            v-model="isFlv"
+            @change="restartPlay('isFlv')"
+        /><span>设置Flv格式</span>
+        <input
+            type="checkbox"
+            v-model="isHls"
+            @change="restartPlay('isHls')"
+        /><span>设置Hls格式</span>
+        <input
+            type="checkbox"
+            v-model="isFmp4"
+            @change="restartPlay('isFmp4')"
+        /><span>设置Fmp4格式</span>
+        <input
+            type="checkbox"
+            v-model="isTs"
+            @change="restartPlay('isTs')"
+        /><span>设置Mpeg-ts格式</span>
+        <input
+            type="checkbox"
+            v-model="isPs"
+            @change="restartPlay('isPs')"
+        /><span>设置Mpeg(PS)格式</span>
+        <input
+            type="checkbox"
+            v-model="isNakedFlow"
+            @change="restartPlay('isNakedFlow')"
+        /><span>设置裸流格式</span>
       </div>
       <div class="input">
         <input
@@ -147,7 +188,6 @@
             v-model="networkDelayTimeoutReplay"
             @change="restartPlay()"
         /><span>网络延迟重新播放</span>
-
         <input
             type="checkbox"
             v-model="hiddenAutoPause"
@@ -251,16 +291,23 @@
         </div>
       </div>
       <div class="input">
+        <div>
+          <button @click="toggleControlBar">toggle控制条</button>
+          <a href="/test-url.html" target="_blank" style="color: red;margin-left: 10px">测试地址</a>
+        </div>
+      </div>
+      <div class="input">
         <div>输入URL：</div>
         <input
-            placeholder="支持 hls/ws-raw/ws-flv/http-flv/fmp4协议"
+            placeholder="支持 hls/ws-raw/ws-flv/http-flv/fmp4/mpeg-ts/mpeg(ps)/webrtc/Aliyun-rtc/裸流/等协议"
             type="input"
             autocomplete="on"
             v-model="playUrl"
         />
         <template v-if="!playing">
-          <button v-if="playType === '' || playType === 'play'" @click="play">播放</button>
+          <button v-if="playType === '' || playType === 'play'" @click="play">播放直播流</button>
           <button v-if="playType === '' || playType === 'playback'" @click="playback">播放录像流</button>
+          <button v-if="playType === '' || playType === 'playVod'" @click="playVod">播放点播文件</button>
         </template>
         <template v-if="loading || playing">
           <template v-if="playType === 'play'">
@@ -268,6 +315,9 @@
             <button @click="()=> pause(true)">停止(清屏)</button>
           </template>
           <button v-if="playType === 'playback'" @click="pause">停止录像流</button>
+          <template v-if="playType === 'playVod'">
+            <button @click="pause">暂停</button>
+          </template>
         </template>
       </div>
 
@@ -498,6 +548,7 @@ function isPad() {
 export default {
   name: "ProDemoPlayer",
   jessibuca: null,
+  vConsole: null,
   props: {},
   data() {
     return {
@@ -511,7 +562,7 @@ export default {
       quieting: true,
       loading: false,
       loaded: false, // mute
-      isMute: true, // 是否静音
+      isMute: false, // 是否静音
       showOperateBtns: true,
       showBandwidth: true,
       hotKey: false,
@@ -533,6 +584,8 @@ export default {
       useWCS: false,
       useMSE: false,
       useSIMD: true,
+      audioDecodeUseHardware: true,
+      isFFmpegSIMD: true,
       useMT: true,
       useOffscreen: false,
       networkDelayTimeoutReplay: false,
@@ -541,7 +594,6 @@ export default {
       recordType: 'mp4',
       debugLevel: 'debug',
       scale: 0,
-      vConsole: null,
       playType: '',
       decodeType: '',
       renderType: '',
@@ -557,6 +609,11 @@ export default {
       playModel: 'video+audio',
       isFlv: false,
       isFmp4: false,
+      isHls: false,
+      isTs: false,
+      isPs: false,
+      isNakedFlow: false,
+      decoderErrorAutoWasm: true,
       hiddenAutoPause: false,
       hasVideo: true,
       hasAudio: true,
@@ -574,7 +631,8 @@ export default {
       checkFirstIFrame: true,
       isDropSameTimestampGop: false,
       demuxUseWorker: true,
-      mseDecoderUseWorker: false
+      mseDecoderUseWorker: false,
+      isEdgeSupportHevc: false,// 默认
     };
   },
   mounted() {
@@ -582,22 +640,26 @@ export default {
       this.vConsole = new window.VConsole();
     }
     this.supportMSEHevc = window.MediaSource && window.MediaSource.isTypeSupported('video/mp4; codecs="hev1.1.6.L123.b0"');
-    this.supportMSE = window.MediaSource && window.MediaSource.isTypeSupported('video/mp4; codecs="avc1.64002A"');
+    this.supportMSE = ('MediaSource' in self) || ('ManagedMediaSource' in self);
     this.supportWCS = "VideoEncoder" in window;
     this.supportWebgpu = 'gpu' in navigator;
     const browserInfo = getBrowser();
     this.supportWCSHevc = browserInfo.type.toLowerCase() === 'chrome' && browserInfo.version >= 107 && (location.protocol === 'https:' || location.hostname === 'localhost');
     this.supportSIMDHevc = WebAssembly && WebAssembly.validate(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0, 1, 5, 1, 96, 0, 1, 123, 3, 2, 1, 0, 10, 10, 1, 8, 0, 65, 0, 253, 15, 253, 98, 11]));
+    this.isEdgeSupportHevc = browserInfo.type.toLowerCase() === 'edge' && (this.supportMSEHevc || this.supportWCSHevc);
+
     this.supportMT = typeof SharedArrayBuffer !== 'undefined';
     this.create();
     window.onerror = (msg) => (this.err = msg);
   },
   async unmounted() {
-    if (this.$options && this.jessibuca) {
-      await this.jessibuca.destroy();
-      this.jessibuca = null;
+    if (this.jessibuca) {
+      await this.jessibuca.destroy()
+      this.jessibuca = null
     }
-    this.vConsole && this.vConsole.destroy();
+    if (this.vConsole) {
+      this.vConsole.destroy();
+    }
   },
   methods: {
     create(options) {
@@ -611,8 +673,12 @@ export default {
                 videoBufferDelay: Number(this.videoBufferDelay),
                 isResize: false,
                 useWCS: this.useWCS,
+                decoderErrorAutoWasm: this.decoderErrorAutoWasm,
+                mseDecodeAudio: this.audioDecodeUseHardware,
+                wcsDecodeAudio: this.audioDecodeUseHardware,
                 useMSE: this.useMSE,
                 useSIMD: this.useSIMD,
+                isFFmpegSIMD: this.isFFmpegSIMD,
                 useMThreading: this.useMT,
                 wcsUseVideoRender: this.useWCS,
                 loadingIcon: true,
@@ -661,6 +727,8 @@ export default {
                 ],
                 isFlv: this.isFlv,
                 isFmp4: this.isFmp4,
+                isHls: this.isHls,
+                isNakedFlow: this.isNakedFlow,
                 hiddenAutoPause: this.hiddenAutoPause,
                 forceNoOffscreen: !this.useOffscreen,
                 isNotMute: !this.isMute,
@@ -718,6 +786,7 @@ export default {
                 isDropSameTimestampGop: this.isDropSameTimestampGop,
                 demuxUseWorker: this.demuxUseWorker,
                 mseDecoderUseWorker: this.mseDecoderUseWorker,
+                playVodMp4UseSrc:false,
               },
               options
           )
@@ -802,7 +871,7 @@ export default {
         this.performance = show;
       });
       jessibuca.on('buffer', (buffer) => {
-        console.log('buffer', buffer);
+        !this.isDebug && console.log('buffer', buffer);
       })
 
       jessibuca.on(JessibucaPro.EVENTS.stats, (stats) => {
@@ -827,6 +896,15 @@ export default {
       jessibuca.on(JessibucaPro.EVENTS.ptz, (arrow) => {
         console.log('ptz arrow', arrow);
       })
+
+      jessibuca.on(JessibucaPro.EVENTS.crashLog, (log) => {
+        console.error('crashLog', log)
+      })
+
+      jessibuca.on(JessibucaPro.EVENTS.playFailedAndPaused, (error) => {
+        jessibuca.showErrorMessageTips('播放异常：' + error);
+      })
+
 
       jessibuca.on('performance', (performance) => {
         !this.isDebug && console.log('performance: ', performance);
@@ -865,11 +943,12 @@ export default {
       if (this.playUrl) {
         this.jessibuca.play(this.playUrl).then(() => {
           ElMessage.success('play success');
+          this.playType = 'play'
+          this.loading = true;
         }).catch((err) => {
           ElMessage.error('播放失败');
+          this.jessibuca.showErrorMessageTips('播放异常：' + err.toString());
         });
-        this.playType = 'play'
-        this.loading = true;
       } else {
         ElMessage.error('play url is empty')
         this.jessibuca.showErrorMessageTips('播放地址不能为空');
@@ -914,7 +993,7 @@ export default {
           "start": 1653924618,
           "end": 1653926399
         }]
-      if (this.jessibuca.isPlaybackPause()) {
+      if (this.jessibuca.isPlaybackPaused()) {
         this.jessibuca.playbackResume()
       } else {
         if (this.playUrl) {
@@ -924,13 +1003,40 @@ export default {
             isUseFpsRender: true,
             showControl: true,
             uiUsePlaybackPause: true,
-            isUseLocalCalculateTime: true
+            isUseLocalCalculateTime: true,
+            useMSE: this.useMSE,
+            useWCS: this.useWCS,
+            useWasm: this.useWasm,
+            useSIMD: this.useSIMD,
           }).then(() => {
+            this.playType = 'playback'
             ElMessage.success('playback success');
           }).catch((e) => {
             ElMessage.error(`playback error : ${toString(e)}`);
           })
-          this.playType = 'playback'
+        } else {
+          ElMessage.error('play url is empty')
+        }
+      }
+    },
+
+    playVod() {
+      if (this.jessibuca.isPlayVodPaused()) {
+        this.jessibuca.playVodResume()
+      } else {
+        if (this.playUrl) {
+          this.jessibuca.playVod(this.playUrl, {
+            useMSE: this.useMSE,
+            useWCS: this.useWCS,
+            useWasm: this.useWasm,
+            useSIMD: this.useSIMD,
+          }).then(() => {
+            this.playType = 'playVod'
+            ElMessage.success('playVod success');
+          }).catch((e) => {
+            ElMessage.error(`playVod error : ${toString(e)}`);
+          })
+
         } else {
           ElMessage.error('play url is empty')
         }
@@ -952,6 +1058,15 @@ export default {
           this.performance = "";
         }).catch((err) => {
           console.log('playbackPause error', err);
+        })
+      } else if (this.playType === 'playVod') {
+        this.jessibuca.playVodPause(isClear).then(() => {
+          console.log('playVodPause success');
+          this.playing = false;
+          this.err = "";
+          this.performance = "";
+        }).catch((err) => {
+          console.log('playVodPause error', err);
         })
       } else {
         this.jessibuca.pause(isClear).then(() => {
@@ -1113,17 +1228,27 @@ export default {
       } else if (type === 'simd') {
         this.useMSE = false;
         this.useWCS = false;
-      } else if (type === 'isNakedFlow') {
+      } else {
         this.isFlv = false;
         this.isFmp4 = false;
-      } else if (type === 'isFlv') {
+        this.isHls = false;
+        this.isPs = false;
+        this.isTs = false;
         this.isNakedFlow = false;
-        this.isFmp4 = false;
-      } else if (type === 'isFmp4') {
-        this.isNakedFlow = false;
-        this.isFlv = false;
+        if (type === 'isNakedFlow') {
+          this.isNakedFlow = true;
+        } else if (type === 'isFlv') {
+          this.isFlv = true;
+        } else if (type === 'isFmp4') {
+          this.isFmp4 = true;
+        } else if (type === 'isHls') {
+          this.isHls = true;
+        } else if (type === 'isTs') {
+          this.isTs = true;
+        } else if (type === 'isPs') {
+          this.isPs = true;
+        }
       }
-
       this.replay();
     },
 
@@ -1133,6 +1258,8 @@ export default {
           this.play();
         } else if (this.playType === 'playback') {
           this.playback();
+        } else if (this.playType === 'playVod') {
+          this.playVod();
         } else {
           this.play();
         }
@@ -1321,7 +1448,11 @@ export default {
       }
 
       jessibuca.clearContentToCanvas();
-    }
+    },
+
+    toggleControlBar() {
+      this.jessibuca.toggleControlBar();
+    },
   },
 };
 </script>
@@ -1379,6 +1510,7 @@ export default {
   color: white;
   place-content: stretch;
   border-bottom: 1px solid #ccc;
+  justify-content: start;
 }
 
 .input-wrap {
